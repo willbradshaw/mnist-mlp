@@ -139,7 +139,7 @@ def descend_epoch(inputs, labels, weights_list, learning_rate, batch_size,
     return([weights_list, costs])
 
 def gradient_descent(inputs, labels, n_hidden, learning_rate, batch_size,
-        regulariser, cost_threshold_rel, min_epochs, max_epochs):
+        regulariser, cost_threshold_rel, min_epochs, max_epochs, verbose):
     """Perform gradient descent to convergence."""
     # TODO: Better way to decide when to stop?
     # Initialise
@@ -148,25 +148,25 @@ def gradient_descent(inputs, labels, n_hidden, learning_rate, batch_size,
     n = 0
     converged = False
     # Run first epoch
-    print("   ", "epoch:", n)
+    if verbose: print("   ", "   ", "epoch:", n)
     [weights_list, costs] = descend_epoch(inputs, labels, weights_list,
             learning_rate, batch_size, regulariser)
     # Run algorithm until convergence
     while converged == False:
         n += 1
-        print("   ", "epoch:", n)
+        if verbose: print("   ", "   ", "epoch:", n)
         [weights_list, costs_new] = descend_epoch(inputs, labels, weights_list,
                 learning_rate, batch_size, regulariser)
         costs = np.vstack([costs,costs_new])
         cost_ratio = costs[-1,-1]/costs[-2,-1]
         if n >= max_epochs or ((1 - cost_ratio) <= cost_threshold_rel and n >= min_epochs):
             converged = True
-    print("   ", "Final cost:", costs[-1,-1])
+    if verbose: print("   ", "   ", "Final training cost:", costs[-1,-1])
     return({"weights":weights_list, "costs":costs})
 
 def train_hyperparameters(inputs_train, labels_train, inputs_val, labels_val,
         n_hidden_vals, learning_rate_vals, batch_size_vals, regulariser_vals,
-        cost_threshold_rel, min_epochs, max_epochs):
+        cost_threshold_rel, min_epochs, max_epochs, verbose):
     """Train MLP using various hyperparameter values and pick the best ones
     using the validation dataset."""
     combs = itertools.product(learning_rate_vals, batch_size_vals,
@@ -174,10 +174,10 @@ def train_hyperparameters(inputs_train, labels_train, inputs_val, labels_val,
     cost = math.inf
     n = 0
     for learning_rate,batch_size,regulariser,n_hidden in combs:
-        print("Hyperparameters:",learning_rate,batch_size,regulariser,n_hidden)
+        print("   ", "Hyperparameters:",learning_rate,batch_size,regulariser,n_hidden)
         nn = gradient_descent(inputs_train, labels_train, n_hidden,
                 learning_rate, batch_size, regulariser, cost_threshold_rel,
-                min_epochs, max_epochs)
+                min_epochs, max_epochs, verbose)
         output_val = forward_propagation(inputs_val, nn["weights"])[-1]
         cost_val = sigmoid_cost(output_val, labels_val, nn["weights"], 0)
         if cost_val < cost:
@@ -185,7 +185,7 @@ def train_hyperparameters(inputs_train, labels_train, inputs_val, labels_val,
                     "regulariser":regulariser, "weights":nn["weights"],
                     "trace":nn["costs"], "n_hidden":n_hidden}
             cost = cost_val
-    print("Best hyperparameters:", out["learning_rate"], out["batch_size"],
-            out["regulariser"], out["n_hidden"])
-    print("Best validation error:", cost)
+    print("Best hyperparameters:", out["learning_rate"],
+            out["batch_size"], out["regulariser"], out["n_hidden"])
+    if verbose: print("Best validation error:", cost)
     return out

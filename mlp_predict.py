@@ -10,3 +10,9 @@ def predict_single(output):
     """Convert MLP outputs into class predictions, assuming one
     output neuron per class."""
     return np.argmax(output, 1)
+
+# Evaluate network predictions
+
+def get_pred_err(predictions, labels):
+    """Compute the prediction error frequency for a neural network."""
+    return 1 - np.mean(predictions == labels)
