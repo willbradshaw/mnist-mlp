@@ -1,4 +1,4 @@
-import numpy as np, copy
+import numpy as np, copy, math, itertools
 # TODO: Regularise everything
 # TODO: Import data from internet
 
@@ -124,38 +124,68 @@ def descend_epoch(inputs, labels, weights_list, learning_rate, batch_size,
         regulariser):
     """Perform one epoch of gradient descent."""
     sample_size = len(inputs)
+    order = np.random.choice(np.arange(len(inputs)), len(inputs), False)
+    inputs = inputs[order]
+    labels = labels[order]
+    n = 0
     batch = np.arange(batch_size)
+    costs = np.zeros(math.ceil(sample_size/batch_size))
     while len(batch) > 0:
-        [weights_list,cost] = descend(inputs[batch], labels[batch],
+        [weights_list,costs[n]] = descend(inputs[batch], labels[batch],
                 weights_list, learning_rate, regulariser)
         batch += batch_size
         batch = batch[batch < sample_size]
-    return([weights_list, cost])
-    # TODO: Currently computing cost for every batch but only recording every
-    # epoch. Fix this, one way or the other.
+        n += 1
+    return([weights_list, costs])
 
 def gradient_descent(inputs, labels, n_hidden, learning_rate, batch_size,
-        regulariser, cost_threshold_rel, min_reps=200, starting_len=int(1e4)):
+        regulariser, cost_threshold_rel, min_epochs, max_epochs):
     """Perform gradient descent to convergence."""
     # TODO: Better way to decide when to stop?
     # Initialise
     batch = np.arange(batch_size)
     weights_list = get_starting_weights(inputs[batch], labels[batch], n_hidden)
-    costs = np.zeros(starting_len)
     n = 0
     converged = False
     # Run first epoch
-    [weights_list, costs[n]] = descend_epoch(inputs, labels, weights_list,
+    print("   ", "epoch:", n)
+    [weights_list, costs] = descend_epoch(inputs, labels, weights_list,
             learning_rate, batch_size, regulariser)
     # Run algorithm until convergence
     while converged == False:
-        print(n, costs[n])
         n += 1
-        if n >= len(costs): costs = np.hstack([costs, np.zeros(len(costs))])
-        [weights_list, costs[n]] = descend_epoch(inputs, labels, weights_list,
+        print("   ", "epoch:", n)
+        [weights_list, costs_new] = descend_epoch(inputs, labels, weights_list,
                 learning_rate, batch_size, regulariser)
-        cost_ratio = costs[n]/costs[n-1]
-        if (1 - cost_ratio) <= cost_threshold_rel and n >= min_reps: converged = True
-    print(n, costs[n])
-    costs = costs[:n]
+        costs = np.vstack([costs,costs_new])
+        cost_ratio = costs[-1,-1]/costs[-2,-1]
+        if n >= max_epochs or ((1 - cost_ratio) <= cost_threshold_rel and n >= min_epochs):
+            converged = True
+    print("   ", "Final cost:", costs[-1,-1])
     return({"weights":weights_list, "costs":costs})
+
+def train_hyperparameters(inputs_train, labels_train, inputs_val, labels_val,
+        n_hidden_vals, learning_rate_vals, batch_size_vals, regulariser_vals,
+        cost_threshold_rel, min_epochs, max_epochs):
+    """Train MLP using various hyperparameter values and pick the best ones
+    using the validation dataset."""
+    combs = itertools.product(learning_rate_vals, batch_size_vals,
+            regulariser_vals, n_hidden_vals)
+    cost = math.inf
+    n = 0
+    for learning_rate,batch_size,regulariser,n_hidden in combs:
+        print("Hyperparameters:",learning_rate,batch_size,regulariser,n_hidden)
+        nn = gradient_descent(inputs_train, labels_train, n_hidden,
+                learning_rate, batch_size, regulariser, cost_threshold_rel,
+                min_epochs, max_epochs)
+        output_val = forward_propagation(inputs_val, nn["weights"])[-1]
+        cost_val = sigmoid_cost(output_val, labels_val, nn["weights"], 0)
+        if cost_val < cost:
+            out = {"learning_rate":learning_rate, "batch_size":batch_size,
+                    "regulariser":regulariser, "weights":nn["weights"],
+                    "trace":nn["costs"], "n_hidden":n_hidden}
+            cost = cost_val
+    print("Best hyperparameters:", out["learning_rate"], out["batch_size"],
+            out["regulariser"], out["n_hidden"])
+    print("Best validation error:", cost)
+    return out
