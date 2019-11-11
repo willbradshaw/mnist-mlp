@@ -24,3 +24,14 @@ def bin42dec(matrix):
 def bin102dec(matrix):
     """Convert 10-column binary matrix into a decimal array."""
     return np.argmax(matrix, 1)
+
+# Process inputs
+def feature_scale(inputs):
+    """Discard invariant features and process the rest to have uniform means
+    and variances."""
+    # Discard invariant features
+    inputs_variant = inputs[:,np.var(inputs, 0) != 0]
+    # Scale remaining features
+    inputs_scaled = (inputs_variant - np.mean(inputs_variant, 0))/\
+            np.std(inputs_variant, 0)
+    return(inputs_scaled)
