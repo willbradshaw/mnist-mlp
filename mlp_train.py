@@ -158,10 +158,17 @@ def gradient_descent(inputs, labels, n_hidden, learning_rate, batch_size,
         [weights_list, costs_new] = descend_epoch(inputs, labels, weights_list,
                 learning_rate, batch_size, regulariser)
         costs = np.vstack([costs,costs_new])
-        cost_ratio = costs[-1,-1]/costs[-2,-1]
-        if n >= max_epochs or ((1 - cost_ratio) <= cost_threshold_rel and n >= min_epochs):
-            converged = True
+        # Determine convergence
+        if n >= max_epochs: converged = True
+        elif n < min_epochs: converged = False
+        else:
+            ranking = np.argsort(costs[:,-1])
+            if ranking[-1] != 0: converged = False
+            elif (1-costs[-1,-1]/costs[ranking == 1, -1]) <= \
+                    cost_threshold_rel: converged = True
+            else: converged = False
     if verbose: print("   ", "   ", "Final training cost:", costs[-1,-1])
+    # TODO: Return best epoch instead of final one?
     return({"weights":weights_list, "costs":costs})
 
 def train_hyperparameters(inputs_train, labels_train, inputs_val, labels_val,
