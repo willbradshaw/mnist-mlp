@@ -4,7 +4,10 @@ import numpy as np, copy, math, itertools
 
 def sigmoid(matrix):
     """Apply the sigmoid function to a matrix."""
-    return 1/(1+np.exp(-matrix))
+    # Correct for overflow
+    max_val = np.log(np.finfo(matrix.dtype).max)-1e-5
+    matrix_clipped = np.clip(matrix, None, max_val)
+    return 1/(1+np.exp(-matrix_clipped))
 
 def add_bias(matrix):
     """Add a bias-unit column to an input or activation matrix."""
@@ -56,15 +59,18 @@ def compute_gradients(weights_list, inputs, activations_list, deltas_list,
     # TODO: Check correspondence between deltas and activations
     sample_size = len(inputs)
     activations_list = [inputs] + activations_list
-    grads_list = [(np.matmul(deltas_list[n].T, add_bias(activations_list[n]))+\
-            regulariser * zero_bias(weights_list[n]))/sample_size \
-            for n in range(len(weights_list))]
+    grads_list = [None] * len(weights_list)
+    for n in range(len(weights_list)):
+        grad_unreg = np.matmul(deltas_list[n].T, add_bias(activations_list[n]))\
+                /sample_size
+        grad_reg = (regulariser/sample_size) * zero_bias(weights_list[n])
+        grads_list[n] = grad_unreg + grad_reg
     return grads_list
 
 def sigmoid_cost(outputs, labels, weights_list, regulariser):
     """Compute the cost function of a sigmoid MLP net."""
     inner_cost = -np.sum(labels*np.log(outputs) + (1-labels)*np.log(1-outputs))
-    reg_cost = sum([np.sum(weights_list[n]**2) \
+    reg_cost = sum([np.sum(zero_bias(weights_list[n])**2) \
             for n in range(len(weights_list))]) * regulariser / 2
     return((inner_cost + reg_cost)/len(labels))
 
@@ -105,9 +111,11 @@ def update_weights(weights_list, grads_list, learning_rate):
 def get_starting_weights(inputs, labels, n_hidden):
     """Randomly initialise starting weights based on stated architecture."""
     architecture = [inputs.shape[1]] + n_hidden + [labels.shape[1]]
-    weights_list = [np.random.randn(architecture[n+1], architecture[n] + 1) \
-            for n in range(len(architecture))[:-1]]
-    # TODO: Reduce width of distribution?
+    weights_list = [None] * len(architecture)
+    for n in range(len(architecture))[:-1]:
+        weights_unscaled = np.random.randn(architecture[n+1], architecture[n]+1)
+        weights_scaled = weights_unscaled / np.sqrt(architecture[n])
+        weights_list[n] = weights_scaled
     return(weights_list)
 
 def descend(inputs, labels, weights_list, learning_rate, regulariser):
@@ -139,41 +147,34 @@ def descend_epoch(inputs, labels, weights_list, learning_rate, batch_size,
     return([weights_list, costs])
 
 def gradient_descent(inputs, labels, n_hidden, learning_rate, batch_size,
-        regulariser, cost_threshold_rel, min_epochs, max_epochs, verbose):
-    """Perform gradient descent to convergence."""
-    # TODO: Better way to decide when to stop?
+        regulariser, n_epochs, verbose):
+    """Perform n complete epochs of stochastic gradient descent and return
+    the best."""
     # Initialise
     batch = np.arange(batch_size)
-    weights_list = get_starting_weights(inputs[batch], labels[batch], n_hidden)
-    n = 0
-    converged = False
+    weights_list = [None] * n_epochs
+    n_batches = np.ceil(len(inputs)/batch_size).astype(int)
+    costs = np.zeros([n_epochs,n_batches])
+    weights_init = get_starting_weights(inputs[batch], labels[batch], n_hidden)
     # Run first epoch
-    if verbose: print("   ", "   ", "epoch:", n)
-    [weights_list, costs] = descend_epoch(inputs, labels, weights_list,
+    if verbose: print("   ", "   ", "Epoch 1...", end="")
+    [weights_list[0], costs[0]] = descend_epoch(inputs, labels, weights_init,
             learning_rate, batch_size, regulariser)
-    # Run algorithm until convergence
-    while converged == False:
-        n += 1
-        if verbose: print("   ", "   ", "epoch:", n)
-        [weights_list, costs_new] = descend_epoch(inputs, labels, weights_list,
-                learning_rate, batch_size, regulariser)
-        costs = np.vstack([costs,costs_new])
-        # Determine convergence
-        if n >= max_epochs: converged = True
-        elif n < min_epochs: converged = False
-        else:
-            ranking = np.argsort(costs[:,-1])
-            if ranking[-1] != 0: converged = False
-            elif (1-costs[-1,-1]/costs[ranking == 1, -1]) <= \
-                    cost_threshold_rel: converged = True
-            else: converged = False
-    if verbose: print("   ", "   ", "Final training cost:", costs[-1,-1])
-    # TODO: Return best epoch instead of final one?
-    return({"weights":weights_list, "costs":costs})
+    if verbose: print("done.")
+    # Run remaining epochs
+    for n in range(1, n_epochs):
+        if verbose: print("   ", "   ", "Epoch {}...".format(n+1), end="")
+        [weights_list[n], costs[n,:]] = descend_epoch(inputs, labels,
+                weights_list[n-1], learning_rate, batch_size, regulariser)
+        if verbose: print("done.")
+    # Determine best output and return
+    best_epoch = np.argmin(costs[:,-1])
+    print("   ", "   ", "Best epoch:", best_epoch+1)
+    return({"weights":weights_list[best_epoch], "costs":costs[best_epoch]})
 
 def train_hyperparameters(inputs_train, labels_train, inputs_val, labels_val,
         n_hidden_vals, learning_rate_vals, batch_size_vals, regulariser_vals,
-        cost_threshold_rel, min_epochs, max_epochs, verbose):
+        n_epochs, verbose):
     """Train MLP using various hyperparameter values and pick the best ones
     using the validation dataset."""
     combs = itertools.product(learning_rate_vals, batch_size_vals,
@@ -183,8 +184,7 @@ def train_hyperparameters(inputs_train, labels_train, inputs_val, labels_val,
     for learning_rate,batch_size,regulariser,n_hidden in combs:
         print("   ", "Hyperparameters:",learning_rate,batch_size,regulariser,n_hidden)
         nn = gradient_descent(inputs_train, labels_train, n_hidden,
-                learning_rate, batch_size, regulariser, cost_threshold_rel,
-                min_epochs, max_epochs, verbose)
+                learning_rate, batch_size, regulariser, n_epochs, verbose)
         output_val = forward_propagation(inputs_val, nn["weights"])[-1]
         cost_val = sigmoid_cost(output_val, labels_val, nn["weights"], 0)
         if cost_val < cost:
