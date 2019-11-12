@@ -54,7 +54,7 @@ def backpropagation(activations_list, weights_list, labels):
     return(deltas_list)
 
 def compute_gradients(weights_list, inputs, activations_list, deltas_list,
-        regulariser):
+        regulariser, total_len):
     """Compute regularised gradients for MLP weights."""
     # TODO: Check correspondence between deltas and activations
     sample_size = len(inputs)
@@ -63,7 +63,7 @@ def compute_gradients(weights_list, inputs, activations_list, deltas_list,
     for n in range(len(weights_list)):
         grad_unreg = np.matmul(deltas_list[n].T, add_bias(activations_list[n]))\
                 /sample_size
-        grad_reg = (regulariser/sample_size) * zero_bias(weights_list[n])
+        grad_reg = (regulariser/total_len) * zero_bias(weights_list[n])
         grads_list[n] = grad_unreg + grad_reg
     return grads_list
 
@@ -75,35 +75,6 @@ def sigmoid_cost(outputs, labels, weights_list, regulariser):
             for n in range(len(weights_list))]) * regulariser / 2
     return((inner_cost + reg_cost)/len(labels))
 
-def compute_gradients_numeric_single(inputs, labels, weights_list, n,
-        epsilon=1e-4):
-    """Compute numerical gradients for a single weight matrix."""
-    weights = weights_list[n]
-    size = weights.size
-    grads = np.zeros(weights.shape)
-    indices = np.array(np.unravel_index(range(size), weights.shape))
-    for i in range(size):
-        add = np.zeros(weights_list[n].shape)
-        add[indices[0,i],indices[1,i]] = epsilon
-        weights_list_up = copy.deepcopy(weights_list)
-        weights_list_down = copy.deepcopy(weights_list)
-        weights_list_up[n] += add
-        weights_list_down[n] -= add
-        outputs_up = forward_propagation(inputs, weights_list_up)[-1]
-        outputs_down = forward_propagation(inputs, weights_list_down)[-1]
-        cost_up = sigmoid_cost(outputs_up, labels, weights_list_up, 0)
-        cost_down = sigmoid_cost(outputs_down, labels, weights_list_down, 0)
-        grads[indices[0,i],indices[1,i]] = (cost_up - cost_down)/(2*epsilon)
-    return(grads)
-
-def compute_gradients_numeric(inputs, labels, weights_list, epsilon=1e-4):
-    """Compute unregularised gradients using numerical estimation."""
-    grads_list = [None] * len(weights_list)
-    for n in range(len(weights_list)):
-        grads_list[n] = compute_gradients_numeric_single(inputs, labels,
-                weights_list, n, epsilon)
-    return(grads_list)
-
 def update_weights(weights_list, grads_list, learning_rate):
     """Update weights from activations and deltas."""
     return [weights_list[n] - learning_rate * grads_list[n] \
@@ -112,19 +83,20 @@ def update_weights(weights_list, grads_list, learning_rate):
 def get_starting_weights(inputs, labels, n_hidden):
     """Randomly initialise starting weights based on stated architecture."""
     architecture = [inputs.shape[1]] + n_hidden + [labels.shape[1]]
-    weights_list = [None] * len(architecture)
+    weights_list = [None] * (len(architecture)-1)
     for n in range(len(architecture))[:-1]:
         weights_unscaled = np.random.randn(architecture[n+1], architecture[n]+1)
         weights_scaled = weights_unscaled / np.sqrt(architecture[n])
         weights_list[n] = weights_scaled
     return(weights_list)
 
-def descend(inputs, labels, weights_list, learning_rate, regulariser):
+def descend(inputs, labels, weights_list, learning_rate, regulariser,
+        total_len):
     """Perform one iteration of gradient descent."""
     activations_list = forward_propagation(inputs, weights_list)
     deltas_list = backpropagation(activations_list, weights_list, labels)
     grads_list = compute_gradients(weights_list, inputs, activations_list,
-            deltas_list, regulariser)
+            deltas_list, regulariser, total_len)
     weights_list = update_weights(weights_list, grads_list, learning_rate)
     cost = sigmoid_cost(activations_list[-1], labels, weights_list, regulariser)
     return([weights_list, cost])
@@ -141,7 +113,7 @@ def descend_epoch(inputs, labels, weights_list, learning_rate, batch_size,
     costs = np.zeros(math.ceil(sample_size/batch_size))
     while len(batch) > 0:
         [weights_list,costs[n]] = descend(inputs[batch], labels[batch],
-                weights_list, learning_rate, regulariser)
+                weights_list, learning_rate, regulariser, len(labels))
         batch += batch_size
         batch = batch[batch < sample_size]
         n += 1
