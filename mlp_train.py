@@ -5,9 +5,9 @@ import numpy as np, copy, math, itertools
 def sigmoid(matrix):
     """Apply the sigmoid function to a matrix."""
     # Correct for overflow
-    max_val = np.log(np.finfo(matrix.dtype).max)-1e-5
-    matrix_clipped = np.clip(matrix, None, max_val)
-    return 1/(1+np.exp(-matrix_clipped))
+    #max_val = np.log(np.finfo(matrix.dtype).max)-1e-5
+    #matrix_clipped = np.clip(matrix, None, max_val)
+    return 1/(1+np.exp(-np.nan_to_num(matrix)))
 
 def add_bias(matrix):
     """Add a bias-unit column to an input or activation matrix."""
@@ -69,7 +69,8 @@ def compute_gradients(weights_list, inputs, activations_list, deltas_list,
 
 def sigmoid_cost(outputs, labels, weights_list, regulariser):
     """Compute the cost function of a sigmoid MLP net."""
-    inner_cost = -np.sum(labels*np.log(outputs) + (1-labels)*np.log(1-outputs))
+    inner_cost = -np.sum(np.nan_to_num(labels*np.log(outputs) + \
+            (1-labels)*np.log(1-outputs)))
     reg_cost = sum([np.sum(zero_bias(weights_list[n])**2) \
             for n in range(len(weights_list))]) * regulariser / 2
     return((inner_cost + reg_cost)/len(labels))
