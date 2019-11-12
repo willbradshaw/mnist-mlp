@@ -26,12 +26,19 @@ def bin102dec(matrix):
     return np.argmax(matrix, 1)
 
 # Process inputs
-def feature_scale(inputs):
+def trim_features(inputs, min_samples = 10):
+    """Discard invariant features."""
+    variant = np.sum(inputs != np.median(inputs, 0), 0) >= min_samples
+    return inputs[:,variant]
+
+def feature_scale(inputs, shift = 0, scale = 1):
     """Discard invariant features and process the rest to have uniform means
     and variances."""
-    # Discard invariant features
-    inputs_variant = inputs[:,np.var(inputs, 0) != 0]
+    # Normalise by mean
+    inputs = inputs - np.mean(inputs, 0)
+    # Rescale by SD
+    inputs = inputs/np.std(inputs, 0)
     # Scale remaining features
-    inputs_scaled = (inputs_variant - np.mean(inputs_variant, 0))/\
-            np.std(inputs_variant, 0)
-    return(inputs_scaled)
+    #inputs_scaled = (inputs_variant - np.mean(inputs_variant, 0))/\
+    #        np.std(inputs_variant, 0)
+    return(inputs)
