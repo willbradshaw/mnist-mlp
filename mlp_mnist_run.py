@@ -10,7 +10,7 @@ from mlp_predict import *
 # Decision switches
 scale_features = True
 verbose = True
-profile = False
+profile = True
 report_test = False
 scale_by_range = True
 
@@ -18,18 +18,19 @@ scale_by_range = True
 data_path = "data/mnist.pkl.gz"
 
 # Learning rate and stopping
-learning_rate_initial = 4 if scale_features else 8# 8 with no scaling
-max_steps_down = 9
+learning_rate_initial = 4.0 if scale_features else 8.0
+max_steps_down = 9 if scale_features else 9
 learning_rate_min = learning_rate_initial / 2**max_steps_down
 max_epochs = 100
 
 # Learnable hyperparameters
-n_hidden_vals = [[100]] # Architecture of hidden layers
-batch_size_vals = [40]
-regulariser_vals = [0.01 if scale_features else 0.035]
+n_hidden_vals = [[50],[70],[90]] # Architecture of hidden layers
+batch_size_vals = [40] if scale_features else [160]
+regulariser_vals = [0.01] if scale_features else [0.035]
+momentum = [0.1] if scale_features else [0,0.1,0.3,0.5]
 
 # Feature trimming and scaling
-min_var_samples = 100
+min_var_samples = 10 if ((not scale_features) or scale_by_range) else 100
 
 # TODO: Implement profiling
 # TODO: Implement momentum optimisation
@@ -95,11 +96,10 @@ if scale_features:
 print("\nPerforming SGD with learning rate scheduling.")
 print("Initial learning rate:", learning_rate_initial)
 print("Minimium learning rate:", learning_rate_min)
-print("\nTraining 10-bit networks:")
 nn_10bit = train_hyperparameters(inputs_train, dec2bin10(labels_train),
         inputs_val, dec2bin10(labels_val), learning_rate_initial,
         learning_rate_min, max_epochs, n_hidden_vals,
-        batch_size_vals, regulariser_vals, verbose)
+        batch_size_vals, regulariser_vals, momentum, verbose, profile)
 outputs_10bit = {"train": output(inputs_train, nn_10bit["weights"]),
         "val": output(inputs_val, nn_10bit["weights"]),
         "test": output(inputs_test, nn_10bit["weights"])}
