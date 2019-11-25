@@ -31,11 +31,12 @@ def trim_features(inputs, min_samples = 10):
     variant = np.sum(inputs != np.median(inputs, 0), 0) >= min_samples
     return inputs[:,variant]
 
-def feature_scale(inputs):
+def feature_scale(inputs, scale_by_range = False):
     """Discard invariant features and process the rest to have uniform means
     and variances."""
     # Normalise by mean
     inputs = inputs - np.mean(inputs, 0)
     # Rescale by SD
-    inputs = inputs/np.std(inputs, 0)
+    scale_function = np.ptp if scale_by_range else np.std
+    inputs = inputs/scale_function(inputs, 0)
     return(inputs)
