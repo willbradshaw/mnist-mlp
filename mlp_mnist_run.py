@@ -26,7 +26,7 @@ max_epochs = 100
 # Learnable hyperparameters
 n_hidden_vals = [[100]] # Architecture of hidden layers
 batch_size_vals = [40] if scale_features else [160]
-regulariser_vals = [0.05] if scale_features else [0.035]
+regulariser_vals = [0.04] if scale_features else [0.035]
 momentum = [0.1] if scale_features else [0,0.1,0.3,0.5]
 
 # Feature trimming and scaling
