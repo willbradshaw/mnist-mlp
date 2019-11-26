@@ -28,10 +28,9 @@ def sigmoid_activate(inputs, weights):
     """Compute the activation of a sigmoid neuron."""
     return sigmoid(linear_activate(inputs, weights))
 
-def forward_propagation(inputs, weights_list, dropout_correct=False):
+def forward_propagation(inputs, weights_list):
     """Update activation matrices from inputs and weights."""
     activations_list = [inputs] + [None] * len(weights_list)
-    if dropout_correct: weights_list[-1] /= 2
     for n in range(len(weights_list)):
         activations = sigmoid_activate(activations_list[n],
                 weights_list[n])
@@ -92,45 +91,21 @@ def get_starting_weights(inputs, labels, n_hidden):
     return(weights_list)
 
 def descend(inputs, labels, weights_list, speeds_list, learning_rate,
-        regulariser, momentum, dropout):
+        regulariser, momentum):
     """Perform one iteration of gradient descent."""
-    if dropout:
-        n_hidden = [w.shape[0] for w in weights_list[:-1]]#
-        n_keep = [np.sort(np.random.choice(np.arange(n_hidden[n]),
-                                           round(n_hidden[n]/2), False)) \
-                     for n in range(len(n_hidden))]
-        n_keep_rows = n_keep + [np.arange(len(weights_list[-1]))]
-        n_keep_cols = [np.arange(np.shape(inputs)[-1])] + n_keep
-        n_keep_cols = [np.append([0], x+1) for x in n_keep_cols]
-        weights_list_dropout = [weights_list[n][n_keep_rows[n][:,None],n_keep_cols[n]]\
-                    for n in range(len(weights_list))]
-        speeds_list_dropout = [speeds_list[n][n_keep_rows[n][:,None],n_keep_cols[n]]\
-                    for n in range(len(speeds_list))]
-    else:
-        weights_list_dropout = weights_list
-        speeds_list_dropout = speeds_list
-    activations_list = forward_propagation(inputs, weights_list_dropout)
-    deltas_list = backpropagation(activations_list, weights_list_dropout, labels)
-    grads_list = compute_gradients(weights_list_dropout, inputs, 
+    activations_list = forward_propagation(inputs, weights_list)
+    deltas_list = backpropagation(activations_list, weights_list, labels)
+    grads_list = compute_gradients(weights_list, inputs, 
                                    activations_list, deltas_list, regulariser)
-    [weights_list_dropout, speeds_list_dropout] = update_weights(weights_list_dropout, 
-            speeds_list_dropout, grads_list, learning_rate, momentum)
-    cost = sigmoid_cost(activations_list[-1], labels, weights_list_dropout,
+    [weights_list, speeds_list] = update_weights(weights_list, 
+            speeds_list, grads_list, learning_rate, momentum)
+    cost = sigmoid_cost(activations_list[-1], labels, weights_list,
                         regulariser)
-    if dropout:
-        for n in range(len(weights_list)):
-            weights_list[n][n_keep_rows[n][:,None],n_keep_cols[n]] = \
-                    weights_list_dropout[n] 
-            speeds_list[n][n_keep_rows[n][:,None],n_keep_cols[n]] = \
-                    speeds_list_dropout[n]
-    else:
-        weights_list = weights_list_dropout
-        speeds_list = speeds_list_dropout
     return([weights_list, speeds_list, cost])
 
 def descend_epoch(inputs, labels, weights_list, speeds_init,
         learning_rate_initial, batch_size, regulariser, momentum, 
-        dropout, cost_init, verbose):
+        cost_init, verbose):
     """Perform one epoch of gradient descent."""
     # Initialise
     sample_size = len(inputs)
@@ -145,12 +120,12 @@ def descend_epoch(inputs, labels, weights_list, speeds_init,
     while len(batch) > 0:
         [weights_list, speeds_list, costs[n]] = descend(inputs[batch],
                 labels[batch], weights_list, speeds_list, learning_rate,
-                regulariser, momentum, dropout)
+                regulariser, momentum)
         batch += batch_size
         batch = batch[batch < sample_size]
         n += 1
     # Final cost
-    cost_final = sigmoid_cost(forward_propagation(inputs, weights_list, dropout)[-1],
+    cost_final = sigmoid_cost(forward_propagation(inputs, weights_list)[-1],
             labels, weights_list, regulariser)
     if verbose: print("Final cost:", cost_final, end = ".\n")
     if cost_final >= cost_init:
@@ -160,7 +135,7 @@ def descend_epoch(inputs, labels, weights_list, speeds_init,
 def gradient_descent(inputs, labels, # Training data
         learning_rate_initial, learning_rate_min, max_epochs, # LR schedule
         n_hidden, batch_size, regulariser, momentum,# Hyperparameters
-        dropout=False, verbose=True, profile=False):
+        verbose=True, profile=False):
     """Perform n complete epochs of stochastic gradient descent and return
     the best."""
     # Initialise
@@ -173,7 +148,7 @@ def gradient_descent(inputs, labels, # Training data
     weights_init = get_starting_weights(inputs[batch], labels[batch], n_hidden)
     speeds_init = [np.zeros_like(w) for w in weights_init]
     # Compute initial cost
-    costs[0] = sigmoid_cost(forward_propagation(inputs, weights_init,dropout)[-1],
+    costs[0] = sigmoid_cost(forward_propagation(inputs, weights_init)[-1],
             labels, weights_init, regulariser)
     if verbose: print("   ","Initial cost: {}.".format(costs[0]))
     # Run first epoch
@@ -183,7 +158,7 @@ def gradient_descent(inputs, labels, # Training data
     report_epoch(1, learning_rate_initial, verbose)
     [weights_list[0], speeds_list, costs[1], learning_rate] = descend_epoch(
             inputs, labels, weights_init, speeds_init, learning_rate_initial,
-            batch_size, regulariser, momentum, dropout, costs[0], verbose)
+            batch_size, regulariser, momentum, costs[0], verbose)
     # Run remaining epochs
     n = 1
     while n < max_epochs and learning_rate >= learning_rate_min:
@@ -191,13 +166,12 @@ def gradient_descent(inputs, labels, # Training data
         [weights_list[n], speeds_list, costs[n+1], learning_rate] = \
                 descend_epoch(inputs, labels, weights_list[n-1], speeds_list,
                         learning_rate, batch_size, regulariser, momentum,
-                        dropout, costs[n], verbose)
+                        costs[n], verbose)
         n += 1
     # Determine best output and return
     best_epoch = np.argmin(costs[costs != 0])
     print("   ", "Best epoch:", best_epoch)
     best_weights = weights_list[best_epoch-1]
-    if dropout: best_weights[-1] /= 2
     out = {"weights":best_weights, "costs":costs[:best_epoch],
         "best_epoch": best_epoch, "epochs_run":n-1}
     if profile:
@@ -220,7 +194,7 @@ def train_hyperparameters(inputs_train, labels_train, # Training data
         inputs_val, labels_val, # Validation data
         learning_rate_initial, learning_rate_min, max_epochs, # LR schedule
         n_hidden_vals, batch_size_vals, regulariser_vals, momentum_vals, # Hyperparameters
-        dropout = False, verbose = True, profile = False):
+        verbose = True, profile = False):
     """Train MLP using various hyperparameter values and pick the best ones
     using the validation dataset."""
     combs = itertools.product(batch_size_vals, regulariser_vals, n_hidden_vals,
@@ -232,7 +206,7 @@ def train_hyperparameters(inputs_train, labels_train, # Training data
                 "{0} {1} {2} {3}".format(batch_size,regulariser,n_hidden,momentum))
         nn = gradient_descent(inputs_train, labels_train, learning_rate_initial,
                 learning_rate_min, max_epochs, n_hidden, batch_size,
-                regulariser, momentum, dropout, verbose, profile)
+                regulariser, momentum, verbose, profile)
         output_val = forward_propagation(inputs_val, nn["weights"])[-1]
         cost_val = sigmoid_cost(output_val, labels_val, nn["weights"], 0)
         print("Validation error:", cost_val)
