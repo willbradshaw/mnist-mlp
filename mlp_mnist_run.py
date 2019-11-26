@@ -101,9 +101,9 @@ nn_10bit = train_hyperparameters(inputs_train, dec2bin10(labels_train),
         inputs_val, dec2bin10(labels_val), learning_rate_initial,
         learning_rate_min, max_epochs, n_hidden_vals,
         batch_size_vals, regulariser_vals, momentum, verbose, profile)
-outputs_10bit = {"train": output(inputs_train, nn_10bit["weights"]),
-        "val": output(inputs_val, nn_10bit["weights"]),
-        "test": output(inputs_test, nn_10bit["weights"])}
+outputs_10bit = {"train": output(inputs_train, nn_10bit["weights"], nn_10bit["biases"]),
+        "val": output(inputs_val, nn_10bit["weights"], nn_10bit["biases"]),
+        "test": output(inputs_test, nn_10bit["weights"], nn_10bit["biases"])}
 predict_10bit = {"train": bin102dec(outputs_10bit["train"]),
         "val": bin102dec(outputs_10bit["val"]),
         "test": bin102dec(outputs_10bit["test"])}
