@@ -1,4 +1,4 @@
-import numpy as np, gzip, pickle
+import numpy as np, torch, gzip, pickle
 from mlp_io import *
 from mlp_train import *
 from mlp_predict import *
@@ -44,9 +44,9 @@ try:
     data_train, data_val, data_test = pickle.load(f, encoding="latin1")
 finally:
     f.close()
-inputs_train, labels_train = data_train
-inputs_val, labels_val = data_val
-inputs_test, labels_test = data_test
+inputs_train, labels_train = [torch.tensor(d) for d in data_train]
+inputs_val, labels_val = [torch.tensor(d) for d in data_val]
+inputs_test, labels_test = [torch.tensor(d) for d in data_test]
 print("done.")
 
 #=============================
@@ -58,7 +58,7 @@ print("Minimum # variant samples to retain feature:", min_var_samples)
 print("Dropping invariant features...", end="")
 # Combine datasets
 cut = np.cumsum([len(inputs_train), len(inputs_val)])
-inputs_all = np.vstack([inputs_train, inputs_val, inputs_test])
+inputs_all = torch.cat([inputs_train, inputs_val, inputs_test], 0)
 # Discard invariant features (e.g. image padding)
 inputs_variant = trim_features(inputs_all, min_var_samples)
 # Re-separate datasets
@@ -79,7 +79,7 @@ if scale_features:
     print("Scaling features by {}...".format(ref), end = "")
     # Combine datasets
     cut = np.cumsum([len(inputs_train), len(inputs_val)])
-    inputs_all = np.vstack([inputs_train, inputs_val, inputs_test])
+    inputs_all = torch.cat([inputs_train, inputs_val, inputs_test], 0)
     # Scale features
     inputs_scaled = feature_scale(inputs_all)
     # Re-separate datasets
@@ -109,6 +109,6 @@ predict_10bit = {"train": bin102dec(outputs_10bit["train"]),
 error_10bit = {"test": get_pred_err(predict_10bit["test"], labels_test),
         "val": get_pred_err(predict_10bit["val"], labels_val),
         "train": get_pred_err(predict_10bit["train"], labels_train)}
-print("Training error:", round(error_10bit["train"]*100, 2), "%")
-print("Validation error:", round(error_10bit["val"]*100, 2), "%")
-if report_test: print("** Test error:", round(error_10bit["test"]*100, 2), "% **")
+print("Training error:", round(error_10bit["train"]*100,2), "%")
+print("Validation error:", round(error_10bit["val"]*100,2), "%")
+if report_test: print("** Test error:", round(error_10bit["test"]*100,2), "% **")

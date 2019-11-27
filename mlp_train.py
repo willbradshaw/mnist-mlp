@@ -1,28 +1,15 @@
-import numpy as np, copy, math, itertools, cProfile, pstats
+import torch, copy, math, itertools, cProfile, pstats, numpy as np
 
 def sigmoid(matrix, maxval = 1e100):
     """Apply the sigmoid function to a matrix."""
     # Correct for overflow
-    max_val = np.log(np.finfo(matrix.dtype).max)
-    matrix_clipped = np.clip(matrix, -max_val, max_val)
-    return 1/(1+np.exp(-matrix_clipped))
-
-def add_bias(matrix):
-    """Add a bias-unit column to an input or activation matrix."""
-    return np.hstack([np.ones([matrix.shape[0], 1]), matrix])
-
-def drop_bias(matrix):
-    """Remove the bias-unit column from a weight or delta matrix."""
-    return matrix[:,1:]
-
-def zero_bias(matrix):
-    """Convert the bias-unit column from a weight or delt matrix to zeros."""
-    matrix[:,0] = 0
-    return(matrix)
+    max_val = math.log(torch.finfo(matrix.dtype).max)
+    matrix_clipped = torch.clamp(matrix, -max_val, max_val)
+    return 1/(1+torch.exp(-matrix_clipped))
 
 def linear_activate(inputs, weights, biases):
     """Linearly combine inputs and weights."""
-    return(np.matmul(inputs, weights.T) + biases.T)
+    return(torch.matmul(inputs, weights.T) + biases.T)
 
 def sigmoid_activate(inputs, weights, biases):
     """Compute the activation of a sigmoid neuron."""
@@ -45,7 +32,7 @@ def backpropagation(activations_list, weights_list, labels):
     deltas_list[-1] = activations_list[-1] - labels
     for n in range(N)[:-1]:
         m = -(n+1)
-        comp1 = np.matmul(deltas_list[m], weights_list[m])
+        comp1 = torch.matmul(deltas_list[m], weights_list[m])
         comp2 = activations_list[m-1] * (1 - activations_list[m-1])
         deltas_list[m-1] = comp1 * comp2
     return(deltas_list)
@@ -56,22 +43,22 @@ def compute_gradients(weights_list, bias_list, inputs, activations_list,
     sample_size, N = len(inputs), range(len(weights_list))
     activations_list = [inputs] + activations_list
     grads_list_weights = [None] * len(weights_list)
-    grads_list_biases = [np.sum(deltas_list[n].T, 1)[:,np.newaxis]/sample_size\
+    grads_list_biases = [torch.unsqueeze(torch.sum(deltas_list[n].T, 1), 1)/sample_size\
                          for n in N]
-    grads_list_weights = [(np.matmul(deltas_list[n].T, activations_list[n])\
+    grads_list_weights = [(torch.matmul(deltas_list[n].T, activations_list[n])\
                           +regulariser*weights_list[n])/sample_size for n in N]
     return [grads_list_weights, grads_list_biases]
 
 def sigmoid_cost(outputs, labels, weights_list, regulariser):
     """Compute the cost function of a sigmoid MLP net."""
-    max_val = np.finfo(outputs.dtype).max
+    max_val = torch.finfo(outputs.dtype).max
     min_val = 1/max_val
-    pos_cost = labels * np.log(np.clip(outputs, min_val, max_val))
-    neg_cost = (1-labels)*np.log(np.clip(1-outputs, min_val, max_val))
-    inner_cost = -np.sum(pos_cost + neg_cost)
-    reg_cost = sum([np.sum(weights_list[n]**2) \
+    pos_cost = labels * torch.log(torch.clamp(outputs, min_val, max_val))
+    neg_cost = (1-labels)*torch.log(torch.clamp(1-outputs, min_val, max_val))
+    inner_cost = -torch.sum(pos_cost + neg_cost)
+    reg_cost = sum([torch.sum(weights_list[n]**2) \
             for n in range(len(weights_list))]) * regulariser / 2
-    return((inner_cost + reg_cost)/len(labels))
+    return(float((inner_cost + reg_cost)/len(labels)))
 
 def update_weights(weights_list, bias_list,
                    speeds_list_weights, speeds_list_biases,
@@ -96,9 +83,9 @@ def get_starting_weights(inputs, labels, n_hidden):
     weights_list = [None] * (len(architecture)-1)
     bias_list = [None] * (len(architecture)-1)
     for n in range(len(architecture))[:-1]:
-        weights = np.random.randn(architecture[n+1], architecture[n])\
-                /np.sqrt(architecture[n])
-        biases = np.random.randn(architecture[n+1], 1)/np.sqrt(architecture[n])
+        weights = torch.randn(architecture[n+1], architecture[n])\
+                /math.sqrt(architecture[n])
+        biases = torch.randn(architecture[n+1], 1)/math.sqrt(architecture[n])
         weights_list[n], bias_list[n] = weights, biases
     return([weights_list, bias_list])
 
@@ -125,11 +112,11 @@ def descend_epoch(inputs, labels, weights_list, bias_list, speeds_init_weights,
     """Perform one epoch of gradient descent."""
     # Initialise
     sample_size = len(inputs)
-    order = np.random.choice(np.arange(len(inputs)), len(inputs), False)
+    order = torch.randperm(len(inputs))
     inputs = inputs[order]
     labels = labels[order]
-    batch = np.arange(batch_size)
-    costs = np.zeros(math.ceil(sample_size/batch_size))
+    batch = torch.arange(batch_size)
+    costs = torch.zeros(math.ceil(sample_size/batch_size))
     # Learn from batches
     learning_rate, speeds_list_weights, speeds_list_biases = \
             learning_rate_initial, speeds_init_weights, speeds_init_biases
@@ -160,15 +147,15 @@ def gradient_descent(inputs, labels, # Training data
     # Initialise
     p = cProfile.Profile() if profile else None
     if profile: p.enable()
-    batch = np.arange(batch_size)
+    batch = torch.arange(batch_size)
     weights_lists = [None] * max_epochs
     bias_lists = [None] * max_epochs
-    n_batches = np.ceil(len(inputs)/batch_size).astype(int)
-    costs = np.zeros([max_epochs+1])
+    n_batches = math.ceil(len(inputs)/batch_size)
+    costs = torch.zeros([max_epochs+1])
     [weights_init, biases_init] = get_starting_weights(inputs[batch],
             labels[batch], n_hidden)
-    speeds_init_weights = [np.zeros_like(w) for w in weights_init]
-    speeds_init_biases = [np.zeros_like(b) for b in biases_init]
+    speeds_init_weights = [torch.zeros_like(w) for w in weights_init]
+    speeds_init_biases = [torch.zeros_like(b) for b in biases_init]
     # Compute initial cost
     outputs_init = forward_propagation(inputs, weights_init, biases_init)[-1]
     costs[0] = sigmoid_cost(outputs_init, labels, weights_init, regulariser)
@@ -194,7 +181,7 @@ def gradient_descent(inputs, labels, # Training data
          batch_size, regulariser, momentum, costs[n], verbose)
         n += 1
     # Determine best output and return
-    best_epoch = np.argmin(costs[costs != 0])
+    best_epoch = torch.argmin(costs[costs != 0])
     print("   ", "Best epoch:", best_epoch)
     best_weights = weights_lists[best_epoch-1]
     best_biases = bias_lists[best_epoch-1]
