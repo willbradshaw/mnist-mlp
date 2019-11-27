@@ -3,7 +3,7 @@ import numpy as np, copy, math, itertools, cProfile, pstats
 def sigmoid(matrix, maxval = 1e100):
     """Apply the sigmoid function to a matrix."""
     # Correct for overflow
-    max_val = np.log(np.finfo(matrix.dtype).max)-1e-4
+    max_val = np.log(np.finfo(matrix.dtype).max)
     matrix_clipped = np.clip(matrix, -max_val, max_val)
     return 1/(1+np.exp(-matrix_clipped))
 

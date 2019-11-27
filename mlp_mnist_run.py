@@ -11,8 +11,8 @@ from mlp_predict import *
 scale_features = True
 verbose = True
 profile = True
-report_test = False
-scale_by_range = True
+report_test = True
+scale_by_range = True # Else by standard deviation
 
 # Input
 data_path = "data/mnist.pkl.gz"
@@ -24,16 +24,15 @@ learning_rate_min = learning_rate_initial / 2**max_steps_down
 max_epochs = 100
 
 # Learnable hyperparameters
-n_hidden_vals = [[100]] # Architecture of hidden layers
-batch_size_vals = [40] if scale_features else [160]
-regulariser_vals = [0.04] if scale_features else [0.035]
-momentum = [0.1] if scale_features else [0,0.1,0.3,0.5]
+# Most recent best: 360, 0.08, [327], 0.3 (TrE 0.18%, VE 2.03%, TeE 1.97%)
+batch_size_vals = [360]*10 if scale_features else [160]
+regulariser_vals = [0.08] if scale_features else [0.035]
+momentum = [0.3] if scale_features else [0,0.1,0.3,0.5]
+n_hidden_vals = [[int(654/2)]] # Architecture of hidden layers
+
 
 # Feature trimming and scaling
 min_var_samples = 10 if ((not scale_features) or scale_by_range) else 100
-
-# TODO: Implement profiling
-# TODO: Implement momentum optimisation
 
 #=============
 # Import data
