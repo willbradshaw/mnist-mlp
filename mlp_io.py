@@ -28,3 +28,8 @@ def feature_scale(inputs, scale_by_range = False):
         scale_function = lambda x: torch.max(x) - torch.min(x)
     inputs = inputs/scale_function(inputs, 0)
     return(inputs)
+    
+# Get prediction error
+def get_pred_err(predictions, labels):
+    """Compute the prediction error frequency for a neural network."""
+    return float(1 - (predictions == labels).double().mean())
