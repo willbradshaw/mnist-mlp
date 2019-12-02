@@ -24,11 +24,10 @@ learning_rate_min = learning_rate_initial / 2**max_steps_down
 max_epochs = 100
 
 # Learnable hyperparameters
-# Most recent best: 360, 0.08, [327], 0.3 (TrE 0.18%, VE 2.03%, TeE 1.97%)
-batch_size_vals = [10, 50] #[360]*1 if scale_features else [160]
-regulariser_vals = [1e-5, 1e-4] #[0.08] if scale_features else [0.035]
-momentum = [0.4] if scale_features else [0,0.1,0.3,0.5]
-n_hidden_vals = [[100], [200]] #[[int(654/2)]] # Architecture of hidden layers
+batch_size_vals = [50] #[360]*1 if scale_features else [160]
+regulariser_vals = [1e-5] #[0.08] if scale_features else [0.035]
+momentum = [0.4]
+n_hidden_vals = [[200]] # Architecture of hidden layers
 
 # Feature trimming and scaling
 min_var_samples = 10 if ((not scale_features) or scale_by_range) else 100
